@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Các hàm tiện ích dùng chung.
  */
@@ -69,4 +70,61 @@ function old(string $key, string $default = ''): string
 function isPost(): bool
 {
     return $_SERVER['REQUEST_METHOD'] === 'POST';
+}
+
+
+// ---------- Phân trang (dùng chung cho các trang danh sách) ----------
+/**
+ * Tính thông số phân trang. Trang hiện tại lấy từ ?page= trên URL.
+ * Dùng: $pg = paginate($tongSoDong, 20);
+ *       ... LIMIT {$pg['perPage']} OFFSET {$pg['offset']}
+ * Trả về: page, perPage, total, totalPages, offset
+ */
+function paginate(int $total, int $perPage = 20): array
+{
+    $perPage    = max(1, $perPage);
+    $totalPages = max(1, (int) ceil($total / $perPage));
+    $page       = min(max(1, (int) ($_GET['page'] ?? 1)), $totalPages);   // kẹp trong [1, totalPages]
+
+    return [
+        'page'       => $page,
+        'perPage'    => $perPage,
+        'total'      => $total,
+        'totalPages' => $totalPages,
+        'offset'     => ($page - 1) * $perPage,
+    ];
+}
+
+/** URL của trang $page, giữ nguyên các tham số lọc đang có (q, role, status...). */
+function pageLink(int $page): string
+{
+    $params = $_GET;
+    unset($params['page']);
+    if ($page > 1) {
+        $params['page'] = $page;
+    }
+    return $_SERVER['SCRIPT_NAME'] . ($params ? '?' . http_build_query($params) : '');
+}
+
+/** HTML thanh phân trang Bootstrap. Chỉ có 1 trang thì không in gì. */
+function renderPagination(array $pg): string
+{
+    if ($pg['totalPages'] <= 1) {
+        return '';
+    }
+
+    $html = '<nav class="mt-4" aria-label="Phân trang"><ul class="pagination justify-content-center">';
+
+    $html .= '<li class="page-item' . ($pg['page'] <= 1 ? ' disabled' : '') . '">'
+        . '<a class="page-link" href="' . e(pageLink($pg['page'] - 1)) . '">&laquo;</a></li>';
+
+    for ($i = 1; $i <= $pg['totalPages']; $i++) {
+        $html .= '<li class="page-item' . ($i === $pg['page'] ? ' active' : '') . '">'
+            . '<a class="page-link" href="' . e(pageLink($i)) . '">' . $i . '</a></li>';
+    }
+
+    $html .= '<li class="page-item' . ($pg['page'] >= $pg['totalPages'] ? ' disabled' : '') . '">'
+        . '<a class="page-link" href="' . e(pageLink($pg['page'] + 1)) . '">&raquo;</a></li>';
+
+    return $html . '</ul></nav>';
 }

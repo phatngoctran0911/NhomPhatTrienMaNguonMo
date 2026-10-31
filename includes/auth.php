@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Xác thực & phân quyền.
  * Mọi trang chỉ cần: require_once __DIR__ . '/includes/auth.php';
@@ -10,12 +11,31 @@ require_once __DIR__ . '/functions.php';
 
 function isLoggedIn(): bool
 {
-    return !empty($_SESSION['user']);
+    if (empty($_SESSION['user'])) {
+        return false;                       // khách: không tốn query
+    }
+
+    static $valid = null;                   // nhớ kết quả trong cùng request
+    if ($valid === null) {
+        $stmt = db()->prepare('SELECT role, is_active FROM users WHERE id = ? LIMIT 1');
+        $stmt->execute([(int) $_SESSION['user']['id']]);
+        $row = $stmt->fetch();
+
+        if (!$row || !$row['is_active']) {
+            unset($_SESSION['user']);
+            flash('danger', 'Tài khoản của bạn đã bị khóa hoặc không còn tồn tại.');
+            $valid = false;
+        } else {
+            $_SESSION['user']['role'] = $row['role'];   // role luôn là bản mới nhất
+            $valid = true;
+        }
+    }
+    return $valid;
 }
 
 function currentUser(): ?array
 {
-    return $_SESSION['user'] ?? null;
+    return isLoggedIn() ? $_SESSION['user'] : null;
 }
 
 /** Kiểm tra người dùng hiện tại có một trong các vai trò: hasRole('admin', 'teacher') */
